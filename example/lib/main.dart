@@ -122,8 +122,7 @@ line 3
 """;
 
 void main() {
-  md.ExtensionSet extensionSet = md.ExtensionSet.gitHubFlavored;
-  extensionSet.inlineSyntaxes.add(SubscriptSyntax());
+  final controller = ScrollController();
 
   runApp(
     MaterialApp(
@@ -138,7 +137,6 @@ void main() {
             selectable: true,
             data: _markdownData,
             imageDirectory: 'https://raw.githubusercontent.com',
-            extensionSet: extensionSet,
             builders: {
               'h6': CenteredHeaderBuilder(),
               'sub': SubscriptBuilder(),

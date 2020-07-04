@@ -100,23 +100,33 @@ class MarkdownBuilder implements md.NodeVisitor {
     @required this.imageBuilder,
     @required this.checkboxBuilder,
     @required this.builders,
-    @required this.fitContent,
+    this.fitContent = false,
   });
 
+  /// A delegate that controls how link and `pre` elements behave.
   final MarkdownBuilderDelegate delegate;
 
+  /// If true, the text is selectable.
+  ///
+  /// Defaults to false.
   final bool selectable;
 
+  /// Defines which [TextStyle] objects to use for each type of element.
   final MarkdownStyleSheet styleSheet;
 
+  /// The base directory holding images referenced by Img tags with local or network file paths.
   final String imageDirectory;
 
+  /// Call when build an image widget.
   final MarkdownImageBuilder imageBuilder;
 
+  /// Call when build a checkbox widget.
   final MarkdownCheckboxBuilder checkboxBuilder;
 
+  /// Call when build a custom widget.
   final Map<String, MarkdownElementBuilder> builders;
 
+  /// Whether to allow the widget to fit the child content.
   final bool fitContent;
 
   final List<String> _listIndents = <String>[];
@@ -124,6 +134,8 @@ class MarkdownBuilder implements md.NodeVisitor {
   final List<_TableElement> _tables = <_TableElement>[];
   final List<_InlineElement> _inlines = <_InlineElement>[];
   final List<GestureRecognizer> _linkHandlers = <GestureRecognizer>[];
+  String _currentBlockTag;
+  bool _isInBlockquote = false;
   final List<String> _tags = <String>[];
 
   /// Returns widgets that display the given Markdown nodes.
@@ -135,6 +147,7 @@ class MarkdownBuilder implements md.NodeVisitor {
     _tables.clear();
     _inlines.clear();
     _linkHandlers.clear();
+    _isInBlockquote = false;
     _tags.clear();
 
     _blocks.add(_BlockElement(null));
@@ -146,6 +159,7 @@ class MarkdownBuilder implements md.NodeVisitor {
 
     assert(_tables.isEmpty);
     assert(_inlines.isEmpty);
+    assert(!_isInBlockquote);
     assert(_tags.isEmpty);
     return _blocks.single.children;
   }
@@ -153,7 +167,7 @@ class MarkdownBuilder implements md.NodeVisitor {
   @override
   bool visitElementBefore(md.Element element) {
     final String tag = element.tag;
-    _tags.add(element.tag);
+    if (_currentBlockTag == null) _currentBlockTag = tag;
 
     if (builders.containsKey(tag)) {
       builders[tag].visitElementBefore(element);
@@ -163,6 +177,8 @@ class MarkdownBuilder implements md.NodeVisitor {
       _addAnonymousBlockIfNeeded();
       if (_isListTag(tag)) {
         _listIndents.add(tag);
+      } else if (tag == 'blockquote') {
+        _isInBlockquote = true;
       } else if (tag == 'table') {
         _tables.add(_TableElement());
       } else if (tag == 'tr') {
@@ -200,7 +216,7 @@ class MarkdownBuilder implements md.NodeVisitor {
     _addParentInlineIfNeeded(_blocks.last.tag);
 
     Widget child;
-    if (builders.containsKey(_tags.last)) {
+    if (_tags.isNotEmpty && builders.containsKey(_tags.last)) {
       child =
           builders[_tags.last].visitText(text, styleSheet.styles[_tags.last]);
     } else if (_blocks.last.tag == 'pre') {
@@ -212,18 +228,18 @@ class MarkdownBuilder implements md.NodeVisitor {
         ),
       );
     } else {
-      child = _buildRichText(TextSpan(
-        style: _tags.last == 'blockquote'
-            ? _inlines.last.style.merge(styleSheet.blockquote)
-            : _inlines.last.style,
-        text: text.text,
-        recognizer: _linkHandlers.isNotEmpty ? _linkHandlers.last : null,
-      ));
+      child = _buildRichText(
+        TextSpan(
+          style: _isInBlockquote
+              ? _inlines.last.style.merge(styleSheet.blockquote)
+              : _inlines.last.style,
+          text: text.text.replaceAll(RegExp(r" ?\n"), " "),
+          recognizer: _linkHandlers.isNotEmpty ? _linkHandlers.last : null,
+        ),
+        textAlign: _textAlignForBlockTag(_currentBlockTag),
+      );
     }
-
-    if (child != null) {
-      _inlines.last.children.add(child);
-    }
+    _inlines.last.children.add(child);
   }
 
   @override
@@ -284,6 +300,7 @@ class MarkdownBuilder implements md.NodeVisitor {
           children: _tables.removeLast().rows,
         );
       } else if (tag == 'blockquote') {
+        _isInBlockquote = false;
         child = DecoratedBox(
           decoration: styleSheet.blockquoteDecoration,
           child: Padding(
@@ -308,9 +325,7 @@ class MarkdownBuilder implements md.NodeVisitor {
       if (builders.containsKey(tag)) {
         final Widget child =
             builders[tag].visitElementAfter(element, styleSheet.styles[tag]);
-        if (child != null) {
-          current.children.add(child);
-        }
+        if (child != null) current.children[0] = child;
       } else if (tag == 'img') {
         // create an image widget for this image
         current.children.add(_buildImage(
@@ -353,8 +368,7 @@ class MarkdownBuilder implements md.NodeVisitor {
         parent.children.addAll(current.children);
       }
     }
-
-    _tags.removeLast();
+    if (_currentBlockTag == tag) _currentBlockTag = null;
   }
 
   Widget _buildImage(String src, String title, String alt) {
@@ -563,7 +577,8 @@ class MarkdownBuilder implements md.NodeVisitor {
     if (selectable) {
       return SelectableText.rich(
         text,
-        // SelectableText is missing textScaleFactor argument.
+        //textScaleFactor: styleSheet.textScaleFactor,
+        textAlign: textAlign ?? TextAlign.start,
       );
     } else {
       return RichText(

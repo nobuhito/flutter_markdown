@@ -669,17 +669,6 @@ void main() {
       _expectTextStrings(tester.allWidgets, <String>['&']);
     });
 
-    testWidgets('& to &amp; in links', (WidgetTester tester) async {
-      const String url = 'https://img.png?w=50&h=50';
-      await tester.pumpWidget(_boilerplate(const Markdown(
-        data: '![alt]($url)',
-      )));
-
-      final Iterable<Widget> widgets = tester.allWidgets;
-      final Image image = widgets.firstWhere((e) => e is Image);
-      expect((image.image as NetworkImage).url, url);
-    });
-
     testWidgets('< to &lt; when parsing', (WidgetTester tester) async {
       await tester.pumpWidget(_boilerplate(const Markdown(data: '<')));
       _expectTextStrings(tester.allWidgets, <String>['<']);
@@ -792,17 +781,39 @@ void main() {
     });
   });
 
-  testWidgets('Custom Builders', (WidgetTester tester) async {
-    await tester.pumpWidget(_boilerplate(Markdown(
-      data: 'H_2O',
-      extensionSet: md.ExtensionSet([], [SubscriptSyntax()]),
-      builders: {
-        'sub': SubscriptBuilder(),
-      },
-    )));
+  group('Custom builders', () {
+    testWidgets('Subscript', (WidgetTester tester) async {
+      await tester.pumpWidget(_boilerplate(Markdown(
+        data: 'H_2O',
+        extensionSet: md.ExtensionSet([], [SubscriptSyntax()]),
+        builders: {
+          'sub': SubscriptBuilder(),
+        },
+      )));
 
-    final Iterable<Widget> widgets = tester.allWidgets;
-    _expectTextStrings(widgets, ['H₂O']);
+      final Iterable<Widget> widgets = tester.allWidgets;
+      _expectTextStrings(widgets, ['H₂O']);
+    });
+
+    testWidgets('link for wikistyle', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        _boilerplate(
+          Markdown(
+            data: 'This is [[wiki link]]',
+            extensionSet: md.ExtensionSet([], [WikilinkSyntax()]),
+            builders: {
+              'wikilink': WikilinkBuilder(),
+            },
+          ),
+        ),
+      );
+
+      final RichText textWidget = tester.widget(find.byType(RichText));
+      final TextSpan span = (textWidget.text as TextSpan).children[1];
+
+      expect(span.children, null);
+      expect(span.recognizer.runtimeType, equals(TapGestureRecognizer));
+    });
   });
 
   group('Style', () {
@@ -1122,7 +1133,7 @@ String _dumpRenderView() {
       'SliverChildListDelegate');
 }
 
-// Wraps a widget with a left-to-right [Directionality] for tests.
+/// Wraps a widget with a left-to-right [Directionality] for tests.
 Widget _boilerplate(Widget child) {
   return Directionality(
     textDirection: TextDirection.ltr,
@@ -1140,6 +1151,33 @@ class SubscriptSyntax extends md.InlineSyntax {
   bool onMatch(md.InlineParser parser, Match match) {
     parser.addNode(md.Element.text('sub', match[1]));
     return true;
+  }
+}
+
+class WikilinkSyntax extends md.InlineSyntax {
+  static final _pattern = r'\[\[(.*?)\]\]';
+
+  WikilinkSyntax() : super(_pattern);
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    md.Element el = md.Element.withTag("wikilink");
+    el.attributes["href"] = match[1].replaceAll(" ", "_");
+    el.children.add(md.Element.text("span", match[1]));
+
+    parser.addNode(el);
+    return true;
+  }
+}
+
+class WikilinkBuilder extends MarkdownElementBuilder {
+  @override
+  Widget visitElementAfter(md.Element element, _) {
+    return RichText(
+      text: TextSpan(
+          text: element.textContent,
+          recognizer: TapGestureRecognizer()..onTap = () {}),
+    );
   }
 }
 

@@ -31,6 +31,7 @@ typedef Widget MarkdownCheckboxBuilder(bool value);
 ///
 /// Used by [MarkdownWidget] to highlight the contents of `pre` elements.
 abstract class SyntaxHighlighter {
+  // ignore: one_member_abstracts
   /// Returns the formatted [TextSpan] for the given string.
   TextSpan format(String source);
 }
@@ -55,7 +56,8 @@ abstract class MarkdownElementBuilder {
   /// to [preferredStyle].
   ///
   /// If you needn't build a widget, return null.
-  Widget visitElementAfter(md.Element element, TextStyle preferredStyle) => null;
+  Widget visitElementAfter(md.Element element, TextStyle preferredStyle) =>
+      null;
 }
 
 /// Enum to specify which theme being used when creating [MarkdownStyleSheet]
@@ -97,7 +99,6 @@ abstract class MarkdownWidget extends StatefulWidget {
   })  : assert(data != null),
         assert(selectable != null),
         assert(builders != null),
-        assert(fitContent != null),
         super(key: key);
 
   /// The Markdown to display.
@@ -207,7 +208,9 @@ class _MarkdownWidgetState extends State<MarkdownWidget>
         .toList();
     final md.Document document = md.Document(
       extensionSet: widget.extensionSet ?? md.ExtensionSet.gitHubFlavored,
-      inlineSyntaxes: [TaskListSyntax()],
+      inlineSyntaxes: (widget.extensionSet?.inlineSyntaxes ?? [])
+        ..add(TaskListSyntax())
+        ..map((syntax) => syntax),
       encodeHtml: false,
     );
     final MarkdownBuilder builder = MarkdownBuilder(
