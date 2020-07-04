@@ -529,40 +529,13 @@ class MarkdownStyleSheet {
   /// The decoration to use for `hr` elements.
   final Decoration horizontalRuleDecoration;
 
-  // The [WrapAlignment] to use for normal text. Defaults to start.
-  final WrapAlignment textAlign;
-
-  // The [WrapAlignment] to use for h1 text. Defaults to start.
-  final WrapAlignment h1Align;
-
-  // The [WrapAlignment] to use for h2 text. Defaults to start.
-  final WrapAlignment h2Align;
-
-  // The [WrapAlignment] to use for h3 text. Defaults to start.
-  final WrapAlignment h3Align;
-
-  // The [WrapAlignment] to use for h4 text. Defaults to start.
-  final WrapAlignment h4Align;
-
-  // The [WrapAlignment] to use for h5 text. Defaults to start.
-  final WrapAlignment h5Align;
-
-  // The [WrapAlignment] to use for h6 text. Defaults to start.
-  final WrapAlignment h6Align;
-
-  // The [WrapAlignment] to use for an unordered list. Defaults to start.
-  final WrapAlignment unorderedListAlign;
-
-  // The [WrapAlignment] to use for an ordered list. Defaults to start.
-  final WrapAlignment orderedListAlign;
-
-  // The [WrapAlignment] to use for a blockquote. Defaults to start.
-  final WrapAlignment blockquoteAlign;
-
-  // The [WrapAlignment] to use for a code block. Defaults to start.
-  final WrapAlignment codeblockAlign;
-
-  // The text scale factor to use in textual elements
+  /// The text scale factor to use in textual elements.
+  ///
+  /// Because of [SelectableText] is missing textScaleFactor argument, if
+  /// [MarkdownWidget.selectable] is true, it's will be ignored.
+  ///
+  /// Defaults to [MediaQueryData.textScaleFactor] obtained from the ambient
+  /// [MediaQuery], or 1.0 if there is no [MediaQuery] in scope.
   final double textScaleFactor;
 
   /// A [Map] from element name to the corresponding [TextStyle] object.

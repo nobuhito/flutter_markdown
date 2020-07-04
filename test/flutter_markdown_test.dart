@@ -12,6 +12,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_markdown/src/style_sheet.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:mockito/mockito.dart';
 
 void main() {
@@ -80,8 +81,8 @@ void main() {
   });
 
   testWidgets('Multiple line breaks', (WidgetTester tester) async {
-    await tester
-        .pumpWidget(_boilerplate(const MarkdownBody(data: 'line 1  \n  \nline 2')));
+    await tester.pumpWidget(
+        _boilerplate(const MarkdownBody(data: 'line 1  \n  \nline 2')));
 
     final Iterable<Widget> widgets = tester.allWidgets;
     _expectWidgetTypes(
@@ -400,19 +401,6 @@ void main() {
       expect((image.image as NetworkImage).url, 'http://localhost/img.png');
     });
 
-    testWidgets('should not escape ampersands in links',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(_boilerplate(const Markdown(
-          data:
-              '![alt](https://preview.redd.it/sg3q5cuedod31.jpg?width=640&crop=smart&auto=webp&s=497e6295e0c0fc2ce7df5a324fe1acd7b5a5264f)')));
-
-      final Image image =
-          tester.allWidgets.firstWhere((Widget widget) => widget is Image);
-      final NetworkImage networkImage = image.image;
-      expect(networkImage.url,
-          'https://preview.redd.it/sg3q5cuedod31.jpg?width=640&crop=smart&auto=webp&s=497e6295e0c0fc2ce7df5a324fe1acd7b5a5264f');
-    });
-
     testWidgets('local files should be files', (WidgetTester tester) async {
       await tester
           .pumpWidget(_boilerplate(const Markdown(data: '![alt](http.png)')));
@@ -681,6 +669,17 @@ void main() {
       _expectTextStrings(tester.allWidgets, <String>['&']);
     });
 
+    testWidgets('& to &amp; in links', (WidgetTester tester) async {
+      const String url = 'https://img.png?w=50&h=50';
+      await tester.pumpWidget(_boilerplate(const Markdown(
+        data: '![alt]($url)',
+      )));
+
+      final Iterable<Widget> widgets = tester.allWidgets;
+      final Image image = widgets.firstWhere((e) => e is Image);
+      expect((image.image as NetworkImage).url, url);
+    });
+
     testWidgets('< to &lt; when parsing', (WidgetTester tester) async {
       await tester.pumpWidget(_boilerplate(const Markdown(data: '<')));
       _expectTextStrings(tester.allWidgets, <String>['<']);
@@ -791,6 +790,19 @@ void main() {
       final RichText richText = tester.widget(find.byType(RichText));
       expect(richText.textScaleFactor, 2.0);
     });
+  });
+
+  testWidgets('Custom Builders', (WidgetTester tester) async {
+    await tester.pumpWidget(_boilerplate(Markdown(
+      data: 'H_2O',
+      extensionSet: md.ExtensionSet([], [SubscriptSyntax()]),
+      builders: {
+        'sub': SubscriptBuilder(),
+      },
+    )));
+
+    final Iterable<Widget> widgets = tester.allWidgets;
+    _expectTextStrings(widgets, ['H₂O']);
   });
 
   group('Style', () {
@@ -1110,12 +1122,53 @@ String _dumpRenderView() {
       'SliverChildListDelegate');
 }
 
-/// Wraps a widget with a left-to-right [Directionality] for tests.
+// Wraps a widget with a left-to-right [Directionality] for tests.
 Widget _boilerplate(Widget child) {
   return Directionality(
     textDirection: TextDirection.ltr,
     child: child,
   );
+}
+
+// Used by test 'Custom Builders'.
+class SubscriptSyntax extends md.InlineSyntax {
+  static final _pattern = r'_([0-9]+)';
+
+  SubscriptSyntax() : super(_pattern);
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    parser.addNode(md.Element.text('sub', match[1]));
+    return true;
+  }
+}
+
+// Used by test 'Custom Builders'.
+class SubscriptBuilder extends MarkdownElementBuilder {
+  static const List<String> _subscripts = [
+    '₀',
+    '₁',
+    '₂',
+    '₃',
+    '₄',
+    '₅',
+    '₆',
+    '₇',
+    '₈',
+    '₉'
+  ];
+
+  @override
+  Widget visitElementAfter(md.Element element, _) {
+    // We don't currently have a way to control the vertical alignment of text spans.
+    // See https://github.com/flutter/flutter/issues/10906#issuecomment-385723664
+    String textContent = element.textContent;
+    String text = '';
+    for (int i = 0; i < textContent.length; i++) {
+      text += _subscripts[int.parse(textContent[i])];
+    }
+    return RichText(text: TextSpan(text: text));
+  }
 }
 
 class MockHttpClient extends Mock implements io.HttpClient {}
